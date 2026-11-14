@@ -23,8 +23,8 @@ from plangraph.etl.prepare import (
 SURGE_TERRITORY_ID = 4  # Southwest
 SURGE_SUBCATEGORY_ID = 3  # Touring Bikes
 SURGE_FACTOR = 3
-SCRAP_LOCATION_ID = 20  # Frame Welding
-SCRAP_REASON_ID = 11  # Stress test failed
+SCRAP_LOCATION_ID = 40  # Paint
+SCRAP_REASON_ID = 8  # Paint process failed
 
 
 def _truth(scenario: str, description: str, alert_type: str, entity_type: str, ids) -> dict:
@@ -183,18 +183,18 @@ def stock_shortfall(
 def scrap_spike(
     frames: Frames, rng: np.random.Generator, cutoff: pd.Timestamp = SAMPLE_CUTOFF
 ) -> dict:
-    """Scenario: the frame welding work centre scraps 25-40% of its output for 3 weeks."""
+    """Scenario: the paint work centre scraps 25-40% of its output for 3 weeks."""
     wo = frames["production.work_order"].copy()
     routing = frames["production.work_order_routing"]
-    welded = routing.loc[routing["location_id"] == SCRAP_LOCATION_ID, "work_order_id"]
-    hit = wo["work_order_id"].isin(welded) & (wo["end_date"] > cutoff - pd.Timedelta(days=21))
+    painted = routing.loc[routing["location_id"] == SCRAP_LOCATION_ID, "work_order_id"]
+    hit = wo["work_order_id"].isin(painted) & (wo["end_date"] > cutoff - pd.Timedelta(days=21))
     rate = rng.uniform(0.25, 0.40, size=hit.sum())
     wo.loc[hit, "scrapped_qty"] = np.ceil(wo.loc[hit, "order_qty"] * rate).astype(int)
     wo.loc[hit, "scrap_reason_id"] = SCRAP_REASON_ID
     frames["production.work_order"] = wo
     return _truth(
         "scrap_spike",
-        f"Work orders through location {SCRAP_LOCATION_ID} (Frame Welding) scrap 25-40% "
+        f"Work orders through location {SCRAP_LOCATION_ID} (Paint) scrap 25-40% "
         "of units in the last 3 weeks",
         "scrap_spike",
         "Location",
