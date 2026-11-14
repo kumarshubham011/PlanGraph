@@ -44,12 +44,14 @@ def open_order_shortage(frames: Frames) -> pd.DataFrame:
     lines = frames["sales.sales_order_detail"]
     lines = lines[lines["sales_order_id"].isin(open_ids)]
     by_product = lines.groupby("product_id").agg(
-        open_qty=("order_qty", "sum"), open_value=("line_total", "sum"))
+        open_qty=("order_qty", "sum"), open_value=("line_total", "sum")
+    )
     stock = frames["inventory.product_inventory"].groupby("product_id")["quantity"].sum()
     by_product["on_hand"] = stock.reindex(by_product.index).fillna(0)
     by_product["short_qty"] = (by_product["open_qty"] - by_product["on_hand"]).clip(lower=0)
     by_product["short_value"] = (
-        by_product["open_value"] * by_product["short_qty"] / by_product["open_qty"])
+        by_product["open_value"] * by_product["short_qty"] / by_product["open_qty"]
+    )
     return by_product
 
 
@@ -60,10 +62,14 @@ def demand_surge(frames: Frames) -> dict:
     product = frames["production.product"]
 
     surge_orders = soh.loc[
-        (soh["status"] == "Open") & (soh["territory_id"] == SURGE_TERRITORY_ID)
-        & (soh["online_order_flag"] == 0), "sales_order_id"]
+        (soh["status"] == "Open")
+        & (soh["territory_id"] == SURGE_TERRITORY_ID)
+        & (soh["online_order_flag"] == 0),
+        "sales_order_id",
+    ]
     surge_products = product.loc[
-        product["product_subcategory_id"] == SURGE_SUBCATEGORY_ID, "product_id"]
+        product["product_subcategory_id"] == SURGE_SUBCATEGORY_ID, "product_id"
+    ]
     hit = sod["sales_order_id"].isin(surge_orders) & sod["product_id"].isin(surge_products)
     sod.loc[hit, "order_qty"] *= SURGE_FACTOR
     sod.loc[hit, "line_total"] *= SURGE_FACTOR
@@ -78,7 +84,10 @@ def demand_surge(frames: Frames) -> dict:
         "demand_surge",
         f"Open reseller orders for touring bikes in territory {SURGE_TERRITORY_ID} "
         f"multiplied by {SURGE_FACTOR}",
-        "demand_surge", "Product", sod.loc[hit, "product_id"])
+        "demand_surge",
+        "Product",
+        sod.loc[hit, "product_id"],
+    )
 
 
 def vendor_slip(frames: Frames, cutoff: pd.Timestamp = SAMPLE_CUTOFF) -> dict:
@@ -98,7 +107,8 @@ def vendor_slip(frames: Frames, cutoff: pd.Timestamp = SAMPLE_CUTOFF) -> dict:
     due_now = lines[
         (lines["due_date"] > cutoff - pd.Timedelta(days=14))
         & (lines["due_date"] <= cutoff + pd.Timedelta(days=14))
-        & lines["product_id"].isin(part_need.index)]
+        & lines["product_id"].isin(part_need.index)
+    ]
 
     def exposed_value(parts) -> float:
         users = flat_bom.loc[flat_bom["component_id"].isin(parts), "top_id"]
@@ -110,7 +120,8 @@ def vendor_slip(frames: Frames, cutoff: pd.Timestamp = SAMPLE_CUTOFF) -> dict:
     # 1) The last 6 weeks of this vendor's deliveries arrive 14 days late.
     vendor_pos = poh.loc[poh["vendor_id"] == vendor_id, "purchase_order_id"]
     slipping = pod["purchase_order_id"].isin(vendor_pos) & (
-        pod["due_date"] > cutoff - pd.Timedelta(days=45))
+        pod["due_date"] > cutoff - pd.Timedelta(days=45)
+    )
     pod.loc[slipping, "received_date"] = pod.loc[slipping, "due_date"] + pd.Timedelta(days=14)
     not_arrived = slipping & (pod["received_date"] > cutoff)
     pod.loc[not_arrived, "received_date"] = pd.NaT
@@ -122,7 +133,8 @@ def vendor_slip(frames: Frames, cutoff: pd.Timestamp = SAMPLE_CUTOFF) -> dict:
     late_parts = pod.loc[not_arrived & (pod["due_date"] <= cutoff), "product_id"].unique()
     low_stock = np.floor(part_need.reindex(late_parts).dropna() * 0.25)
     frames["inventory.product_inventory"] = set_total_stock(
-        frames["inventory.product_inventory"], low_stock)
+        frames["inventory.product_inventory"], low_stock
+    )
 
     frames["purchasing.purchase_order_header"] = poh
     frames["purchasing.purchase_order_detail"] = pod
@@ -131,11 +143,15 @@ def vendor_slip(frames: Frames, cutoff: pd.Timestamp = SAMPLE_CUTOFF) -> dict:
         "vendor_slip",
         f"Vendor {vendor_id} delivers 14 days late; its open POs are overdue and stock of "
         f"{len(low_stock)} of its parts has run low",
-        "late_po", "PurchaseOrder", late_pos) | {"vendor_id": vendor_id}
+        "late_po",
+        "PurchaseOrder",
+        late_pos,
+    ) | {"vendor_id": vendor_id}
 
 
-def stock_shortfall(frames: Frames, exclude_vendor: int,
-                    cutoff: pd.Timestamp = SAMPLE_CUTOFF) -> dict:
+def stock_shortfall(
+    frames: Frames, exclude_vendor: int, cutoff: pd.Timestamp = SAMPLE_CUTOFF
+) -> dict:
     """Scenario: a stock count finds a key purchased part is mostly missing.
 
     We take the busiest purchased part that the slipping vendor does not supply
@@ -146,23 +162,27 @@ def stock_shortfall(frames: Frames, exclude_vendor: int,
     pod = frames["purchasing.purchase_order_detail"]
     on_order = set(pod.loc[pod["received_date"].isna(), "product_id"])
 
-    needs = component_requirements(explode_bom(active_bom(frames)),
-                                   monthly_demand(frames, cutoff))
+    needs = component_requirements(explode_bom(active_bom(frames)), monthly_demand(frames, cutoff))
     weekly_need = needs / WEEKS_PER_MONTH
     candidates = [p for p in pv["product_id"].unique() if p not in excluded | on_order]
     part_id = int(weekly_need.reindex(candidates).idxmax())
 
     one_week = pd.Series({part_id: np.ceil(weekly_need[part_id])})
     frames["inventory.product_inventory"] = set_total_stock(
-        frames["inventory.product_inventory"], one_week)
+        frames["inventory.product_inventory"], one_week
+    )
     return _truth(
         "stock_shortfall",
         f"Stock of part {part_id} cut to one week of demand, with nothing on order",
-        "stockout", "Product", [part_id])
+        "stockout",
+        "Product",
+        [part_id],
+    )
 
 
-def scrap_spike(frames: Frames, rng: np.random.Generator,
-                cutoff: pd.Timestamp = SAMPLE_CUTOFF) -> dict:
+def scrap_spike(
+    frames: Frames, rng: np.random.Generator, cutoff: pd.Timestamp = SAMPLE_CUTOFF
+) -> dict:
     """Scenario: the frame welding work centre scraps 25-40% of its output for 3 weeks."""
     wo = frames["production.work_order"].copy()
     routing = frames["production.work_order_routing"]
@@ -176,7 +196,10 @@ def scrap_spike(frames: Frames, rng: np.random.Generator,
         "scrap_spike",
         f"Work orders through location {SCRAP_LOCATION_ID} (Frame Welding) scrap 25-40% "
         "of units in the last 3 weeks",
-        "scrap_spike", "Location", [SCRAP_LOCATION_ID])
+        "scrap_spike",
+        "Location",
+        [SCRAP_LOCATION_ID],
+    )
 
 
 def inject_scenarios(frames: Frames, rng: np.random.Generator) -> tuple[Frames, pd.DataFrame]:

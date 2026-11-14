@@ -43,7 +43,8 @@ def cut_future(frames: Frames, cutoff: pd.Timestamp = SAMPLE_CUTOFF) -> Frames:
     pod = frames["purchasing.purchase_order_detail"]
     frames["purchasing.purchase_order_header"] = poh
     frames["purchasing.purchase_order_detail"] = pod[
-        pod["purchase_order_id"].isin(poh["purchase_order_id"])]
+        pod["purchase_order_id"].isin(poh["purchase_order_id"])
+    ]
 
     wo = frames["production.work_order"]
     wo = wo[wo["start_date"] <= cutoff]
@@ -67,8 +68,9 @@ def open_sales_orders(frames: Frames, cutoff: pd.Timestamp = SAMPLE_CUTOFF) -> F
     return frames
 
 
-def add_po_receipts(frames: Frames, rng: np.random.Generator,
-                    cutoff: pd.Timestamp = SAMPLE_CUTOFF) -> Frames:
+def add_po_receipts(
+    frames: Frames, rng: np.random.Generator, cutoff: pd.Timestamp = SAMPLE_CUTOFF
+) -> Frames:
     """SYNTHETIC: give every purchase order a receipt date.
 
     AdventureWorks stores when a PO line is due but not when it arrived, so there
@@ -101,7 +103,9 @@ def add_po_receipts(frames: Frames, rng: np.random.Generator,
     open_po_ids = set(pod.loc[pod["received_date"].isna() & ~rejected, "purchase_order_id"])
     poh["status"] = np.select(
         [poh["status"] == 3, poh["purchase_order_id"].isin(open_po_ids)],
-        ["Rejected", "Open"], default="Received")
+        ["Rejected", "Open"],
+        default="Received",
+    )
 
     frames["purchasing.purchase_order_header"] = poh.drop(columns="delay_days")
     frames["purchasing.purchase_order_detail"] = pod.drop(columns=["delay_days", "status"])
@@ -123,11 +127,13 @@ def active_bom(frames: Frames) -> pd.DataFrame:
     """Current BOM links only (no end date, and a real parent assembly)."""
     bom = frames["production.bill_of_materials"]
     bom = bom[bom["end_date"].isna() & bom["product_assembly_id"].notna()]
-    return pd.DataFrame({
-        "assembly_id": bom["product_assembly_id"].astype(int),
-        "component_id": bom["component_id"].astype(int),
-        "qty": bom["per_assembly_qty"].astype(float),
-    })
+    return pd.DataFrame(
+        {
+            "assembly_id": bom["product_assembly_id"].astype(int),
+            "component_id": bom["component_id"].astype(int),
+            "qty": bom["per_assembly_qty"].astype(float),
+        }
+    )
 
 
 def monthly_demand(frames: Frames, cutoff: pd.Timestamp, months: int = 3) -> pd.Series:
@@ -139,8 +145,9 @@ def monthly_demand(frames: Frames, cutoff: pd.Timestamp, months: int = 3) -> pd.
     return lines.groupby("product_id")["order_qty"].sum() / months
 
 
-def calibrate_stock(frames: Frames, rng: np.random.Generator,
-                    cutoff: pd.Timestamp = SAMPLE_CUTOFF) -> Frames:
+def calibrate_stock(
+    frames: Frames, rng: np.random.Generator, cutoff: pd.Timestamp = SAMPLE_CUTOFF
+) -> Frames:
     """SYNTHETIC: give purchased items a healthy stock level (8 to 12 weeks of demand).
 
     The sample's stock numbers were not built to match its order history, so
@@ -149,8 +156,7 @@ def calibrate_stock(frames: Frames, rng: np.random.Generator,
     specific items on purpose.
     """
     purchased = frames["purchasing.product_vendor"]["product_id"].unique()
-    needs = component_requirements(explode_bom(active_bom(frames)),
-                                   monthly_demand(frames, cutoff))
+    needs = component_requirements(explode_bom(active_bom(frames)), monthly_demand(frames, cutoff))
     weekly_need = (needs / WEEKS_PER_MONTH).reindex(purchased).fillna(0)
     cover_weeks = rng.uniform(8, 12, size=len(weekly_need))
     target = np.ceil(weekly_need * cover_weeks)
@@ -178,8 +184,9 @@ def set_total_stock(inv: pd.DataFrame, target: pd.Series) -> pd.DataFrame:
 
     missing = target.index.difference(inv["product_id"])
     if len(missing):
-        extra = pd.DataFrame({"product_id": missing, "location_id": 6,
-                              "quantity": target.loc[missing].to_numpy()})
+        extra = pd.DataFrame(
+            {"product_id": missing, "location_id": 6, "quantity": target.loc[missing].to_numpy()}
+        )
         inv = pd.concat([inv, extra], ignore_index=True)
     inv["quantity"] = inv["quantity"].astype(int)
     return inv

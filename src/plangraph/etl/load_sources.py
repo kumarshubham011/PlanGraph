@@ -21,8 +21,9 @@ def read_raw(raw_dir: Path) -> prepare.Frames:
     """Load each CSV, keep the columns we use and rename them to snake_case."""
     frames = {}
     for t in TABLES:
-        frame = pd.read_csv(raw_dir / f"{t.file}.csv", sep="\t", header=None,
-                            names=t.columns, low_memory=False)
+        frame = pd.read_csv(
+            raw_dir / f"{t.file}.csv", sep="\t", header=None, names=t.columns, low_memory=False
+        )
         frame = frame[list(t.keep)].rename(columns=t.keep)
         for column in t.dates:
             frame[column] = pd.to_datetime(frame[column])
@@ -55,8 +56,9 @@ def write_sources(frames: prepare.Frames, truth: pd.DataFrame, as_of: date) -> N
         frame.to_sql(table, engine, schema=schema, index=False, chunksize=5000, method="multi")
         log.info("Loaded %-45s %7d rows", name, len(frame))
     truth.to_sql("scenario_truth", engine, schema="meta", index=False)
-    run_info = pd.DataFrame([{
-        "as_of": as_of, "shift_days": prepare.shift_days_for(as_of), "seed": SEED}])
+    run_info = pd.DataFrame(
+        [{"as_of": as_of, "shift_days": prepare.shift_days_for(as_of), "seed": SEED}]
+    )
     run_info.to_sql("run_info", engine, schema="meta", index=False)
 
 

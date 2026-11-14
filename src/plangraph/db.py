@@ -3,7 +3,7 @@
 from functools import lru_cache
 
 import pandas as pd
-from neo4j import READ_ACCESS, Driver, GraphDatabase
+from neo4j import READ_ACCESS, Driver, GraphDatabase, Query
 from sqlalchemy import Engine, create_engine
 
 from plangraph.config import get_settings
@@ -28,11 +28,9 @@ def neo4j_driver() -> Driver:
 def run_read(cypher: str, timeout: float = 30, **params) -> list[dict]:
     """Run a Cypher query in a READ-ONLY session. Neo4j itself rejects any write."""
     with neo4j_driver().session(default_access_mode=READ_ACCESS) as session:
-        return session.execute_read(
-            lambda tx: [r.data() for r in tx.run(cypher, **params)], timeout=timeout
-        )
+        return [r.data() for r in session.run(Query(cypher, timeout=timeout), params)]
 
 
 def run_write(cypher: str, **params) -> list[dict]:
     with neo4j_driver().session() as session:
-        return session.execute_write(lambda tx: [r.data() for r in tx.run(cypher, **params)])
+        return [r.data() for r in session.run(cypher, params)]

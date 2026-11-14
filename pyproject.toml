@@ -41,6 +41,7 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]  # the formatter already wraps code; long SQL strings are fine
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
