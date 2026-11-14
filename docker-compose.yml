@@ -1,0 +1,65 @@
+# One command to run everything:  docker compose up --build
+# Databases only (for local development):  docker compose up -d postgres neo4j
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: plangraph
+      POSTGRES_PASSWORD: plangraph
+      POSTGRES_DB: plangraph
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plangraph"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  neo4j:
+    image: neo4j:5-community
+    environment:
+      NEO4J_AUTH: neo4j/plangraph-dev
+      NEO4J_server_memory_heap_max__size: 1G
+    ports: ["7474:7474", "7687:7687"]
+    volumes: [neo4jdata:/data]
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p plangraph-dev 'RETURN 1' || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  # Runs the nightly job once at start-up so the app has data, then exits.
+  pipeline:
+    build: .
+    command: python -m plangraph.pipeline
+    env_file: [{path: .env, required: false}]
+    environment: &app_env
+      POSTGRES_URL: postgresql+psycopg://plangraph:plangraph@postgres:5432/plangraph
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_PASSWORD: plangraph-dev
+    volumes: [rawdata:/app/data/raw]
+    depends_on:
+      postgres: {condition: service_healthy}
+      neo4j: {condition: service_healthy}
+
+  api:
+    build: .
+    command: uvicorn plangraph.api.main:app --host 0.0.0.0 --port 8000
+    env_file: [{path: .env, required: false}]
+    environment: *app_env
+    ports: ["8000:8000"]
+    depends_on:
+      pipeline: {condition: service_completed_successfully}
+
+  ui:
+    build: .
+    command: streamlit run ui/app.py --server.port 8501 --server.address 0.0.0.0
+    environment:
+      API_URL: http://api:8000
+    ports: ["8501:8501"]
+    depends_on: [api]
+
+volumes:
+  pgdata:
+  neo4jdata:
+  rawdata:
