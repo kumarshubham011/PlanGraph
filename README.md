@@ -21,7 +21,7 @@ Measured on the simulated company (AdventureWorks sample data with four injected
 | Demand forecast error (WAPE, 6-month backtest) | 18.3% vs 25.8% for "same as last month" |
 | Late-PO classifier (AUC, time-based test split) | 0.64 vs 0.63 for the vendor's past late rate alone |
 | Golden questions, documents only, no LLM | 35% (14 of 40) |
-| Golden questions, one routed graph query, no LLM | 52.5% (21 of 40) |
+| Golden questions, one routed graph query, no LLM | 55% (22 of 40) |
 | Golden questions, full LangGraph agent with Gemini | not yet run (needs an API key) |
 
 The receipt dates behind the late-PO model are synthetic, so its AUC says little about real vendors. [docs/DATA.md](docs/DATA.md) lists exactly what is real and what is simulated.

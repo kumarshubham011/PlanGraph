@@ -18,12 +18,15 @@ COLOURS = {
     "Target": "#6250d6",
     "Territory": "#e87ba4",
     "Location": "#008300",
+    "Decision": "#52514e",
 }
 OTHER_COLOUR = "#898781"
 
 alerts = get("/alerts")
 options = {a["uid"]: a["title"] for a in alerts}
-default_uid = st.session_state.get("graph_uid") or next(iter(options), "")
+# Start on the first supply alert: its graph shows the full chain from vendor to target.
+first_supply = next((a["uid"] for a in alerts if a["type"] == "late_po"), None)
+default_uid = st.session_state.get("graph_uid") or first_supply or next(iter(options), "")
 left, right = st.columns([2, 1])
 chosen = left.selectbox(
     "Alert",
@@ -42,10 +45,11 @@ except Exception:
     st.warning(f"No node found with uid {uid!r}.")
     st.stop()
 
-st.caption(" · ".join(f":material/circle: {label}" for label in COLOURS) + " (see colours below)")
-legend = st.columns(len(COLOURS))
-for column, (label, colour) in zip(legend, COLOURS.items(), strict=True):
-    column.markdown(f"<span style='color:{colour}'>●</span> {label}", unsafe_allow_html=True)
+legend = " &nbsp; ".join(
+    f"<span style='color:{colour}'>●</span> {label}" for label, colour in COLOURS.items()
+)
+st.markdown(legend, unsafe_allow_html=True)
+st.caption("Hover over a node or an arrow to see what it is.")
 
 nodes = [
     Node(
@@ -57,7 +61,10 @@ nodes = [
     )
     for n in subgraph["nodes"]
 ]
-edges = [Edge(source=e["source"], target=e["target"], label=e["type"]) for e in subgraph["edges"]]
+edges = [
+    Edge(source=e["source"], target=e["target"], title=e["type"], color="#c3c2b7")
+    for e in subgraph["edges"]
+]
 agraph(
     nodes=nodes,
     edges=edges,

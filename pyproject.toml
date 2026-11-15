@@ -40,6 +40,7 @@ packages = ["src/plangraph"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = ["docs", "*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]

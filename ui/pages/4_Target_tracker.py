@@ -39,13 +39,18 @@ bars = targets.rename(columns={"shipped": "Shipped", "at_risk": "Blocked by supp
 )
 bars["order"] = bars["status"].map({name: i for i, name in enumerate(SEGMENTS)})
 
-territories = alt.Y("territory:N", title=None, sort="-x")
+by_target = targets.sort_values("target", ascending=False)["territory"].tolist()
+territories = alt.Y("territory:N", title=None, sort=by_target)
 stacked = (
     alt.Chart(bars)
     .mark_bar(height=18, stroke="#fcfcfb", strokeWidth=2)
     .encode(
         y=territories,
-        x=alt.X("revenue:Q", title="Revenue ($)", axis=alt.Axis(format="~s", gridColor="#e1e0d9")),
+        x=alt.X(
+            "revenue:Q",
+            title="Revenue ($)",
+            axis=alt.Axis(format="~s", gridColor="#e1e0d9", tickCount=6),
+        ),
         color=alt.Color(
             "status:N",
             title=None,
