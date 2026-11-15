@@ -83,7 +83,7 @@ ORDER BY territory
 # Scrap by work centre and reason over the last N days.
 SCRAP_BY_LOCATION = """
 MATCH (w:WorkOrder)-[:ROUTED_THROUGH]->(loc:Location)
-WHERE w.end_date > date() - duration({days: $days}) AND w.scrapped_qty > 0
+WHERE w.end_date > date($as_of) - duration({days: $days}) AND w.scrapped_qty > 0
 MATCH (w)-[:SCRAPPED_FOR]->(reason:ScrapReason)
 MATCH (w)-[:PRODUCES]->(p:Product)
 RETURN loc.uid AS location_uid, loc.name AS location, reason.name AS reason,

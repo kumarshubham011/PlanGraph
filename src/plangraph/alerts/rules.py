@@ -93,8 +93,8 @@ def likely_scrap_source(spikes: pd.DataFrame) -> pd.Series | None:
     return spikes.loc[(spikes["recent_rate"] * share).idxmax()]
 
 
-def severity(usd_at_risk: float, urgent: bool = False) -> str:
-    """high: big money or urgent. medium: some money. low: worth knowing."""
+def severity(usd_at_risk: float, urgent: bool = False, notable: bool = False) -> str:
+    """high: big money or urgent. medium: some money or notable. low: worth knowing."""
     if usd_at_risk >= HIGH_USD or urgent:
         return "high"
-    return "medium" if usd_at_risk > 0 else "low"
+    return "medium" if usd_at_risk > 0 or notable else "low"

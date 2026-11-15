@@ -1,0 +1,218 @@
+# Golden questions: 40 questions with a known right answer.
+#
+# The right answer is NOT typed in by hand for graph questions. Each one has a
+# `truth` Cypher query that fetches the expected value(s) from the graph when the
+# evaluation runs, so the answers stay correct if the data is rebuilt.
+# Document questions have fixed `keywords` instead, because the documents are static.
+#
+# match: all (default) = every expected value must appear in the answer
+#        any           = at least one expected value must appear
+# $as_of is replaced by the simulated "today".
+
+# ---- Supply: late and at-risk purchase orders ----
+- id: s1
+  category: supply
+  question: Which vendor has the purchase order that is the most days late?
+  truth: >-
+    MATCH (po:PurchaseOrder {is_late: true})-[:FROM]->(v:Vendor) RETURN v.name AS expected ORDER BY po.days_late DESC LIMIT 1
+- id: s2
+  category: supply
+  question: Which late purchase order puts the most revenue at risk? Give the PO number.
+  truth: >-
+    MATCH (a:Alert {type: 'late_po', status: 'open'})-[:ABOUT]->(po:PurchaseOrder) RETURN toString(po.id) AS expected ORDER BY a.usd_at_risk DESC LIMIT 1
+- id: s3
+  category: supply
+  question: How much revenue is at risk from late purchase order 2538?
+  truth: >-
+    MATCH (a:Alert {uid: 'Alert:late_po:2538'}) RETURN a.usd_at_risk AS expected
+- id: s4
+  category: supply
+  question: Which vendors have open purchase orders that are likely to arrive late?
+  truth: >-
+    MATCH (a:Alert {type: 'po_at_risk', status: 'open'})-[:ABOUT]->(v:Vendor) RETURN DISTINCT v.name AS expected
+- id: s5
+  category: supply
+  question: Which vendor is late purchase order 2554 from?
+  truth: >-
+    MATCH (:PurchaseOrder {id: 2554})-[:FROM]->(v:Vendor) RETURN v.name AS expected
+- id: s7
+  category: supply
+  question: How much open order revenue is exposed to late purchase order 2538 in total?
+  truth: >-
+    MATCH (a:Alert {uid: 'Alert:late_po:2538'}) RETURN a.usd_exposed AS expected
+- id: s8
+  category: supply
+  question: Which products can no longer ship because of the late Custom Frames purchase order? Name some.
+  match: any
+  truth: >-
+    MATCH (a:Alert {uid: 'Alert:late_po:2538'})-[:ABOUT]->(p:Product {is_finished_good: true}) RETURN p.name AS expected
+
+# ---- Sourcing: who supplies what ----
+- id: v1
+  category: sourcing
+  question: Who supplies Metal Sheet 2?
+  truth: >-
+    MATCH (v:Vendor)-[:SUPPLIES]->(:Product {name: 'Metal Sheet 2'}) RETURN v.name AS expected
+- id: v2
+  category: sourcing
+  question: Is there an alternate vendor for Lock Ring, or is it single-sourced? Name the vendor(s).
+  truth: >-
+    MATCH (v:Vendor)-[:SUPPLIES]->(:Product {name: 'Lock Ring'}) RETURN v.name AS expected
+- id: v3
+  category: sourcing
+  question: Which vendors can supply Thin-Jam Hex Nut 12?
+  truth: >-
+    MATCH (v:Vendor)-[:SUPPLIES]->(:Product {name: 'Thin-Jam Hex Nut 12'}) RETURN v.name AS expected
+- id: v4
+  category: sourcing
+  question: What price per unit does Bergeron Off-Roads charge for Lock Ring?
+  truth: >-
+    MATCH (:Vendor {name: 'Bergeron Off-Roads'})-[s:SUPPLIES]->(:Product {name: 'Lock Ring'}) RETURN s.price AS expected
+- id: v5
+  category: sourcing
+  question: Which vendor offers the shortest lead time for Thin-Jam Hex Nut 11?
+  truth: >-
+    MATCH (v:Vendor)-[s:SUPPLIES]->(:Product {name: 'Thin-Jam Hex Nut 11'}) RETURN v.name AS expected ORDER BY s.lead_days, s.price LIMIT 1
+
+# ---- Bill of materials ----
+- id: b1
+  category: bom
+  question: Name a finished product that uses Metal Sheet 2.
+  match: any
+  truth: >-
+    MATCH (fg:Product {is_finished_good: true})-[:HAS_COMPONENT*1..4]->(:Product {name: 'Metal Sheet 2'}) RETURN DISTINCT fg.name AS expected
+- id: b2
+  category: bom
+  question: Which components go directly into HL Mountain Frame - Black, 42?
+  truth: >-
+    MATCH (:Product {name: 'HL Mountain Frame - Black, 42'})-[:HAS_COMPONENT]->(c:Product) RETURN c.name AS expected
+- id: b3
+  category: bom
+  question: Which finished product that uses Lock Ring has the highest open order value?
+  truth: >-
+    MATCH (fg:Product {is_finished_good: true})-[:HAS_COMPONENT*1..4]->(:Product {name: 'Lock Ring'}) WITH DISTINCT fg MATCH (:SalesOrder {status: 'Open'})-[l:CONTAINS]->(fg) WITH fg, sum(l.value) AS open_value RETURN fg.name AS expected ORDER BY open_value DESC LIMIT 1
+- id: b4
+  category: bom
+  question: Which components go directly into Mountain-200 Black, 42?
+  truth: >-
+    MATCH (:Product {name: 'Mountain-200 Black, 42'})-[:HAS_COMPONENT]->(c:Product) RETURN c.name AS expected
+
+# ---- Stock ----
+- id: k1
+  category: stock
+  question: How many units of Lock Ring are on hand?
+  truth: >-
+    MATCH (p:Product {name: 'Lock Ring'}) RETURN p.on_hand AS expected
+- id: k2
+  category: stock
+  question: What is the forecast weekly demand for Metal Sheet 2?
+  truth: >-
+    MATCH (p:Product {name: 'Metal Sheet 2'}) RETURN p.weekly_demand AS expected
+- id: k3
+  category: stock
+  question: Which purchased items are projected to run out of stock within 6 weeks?
+  truth: >-
+    MATCH (p:Product) WHERE p.stockout_week IS NOT NULL RETURN p.name AS expected
+- id: k4
+  category: stock
+  question: In which locations is Lock Ring stocked?
+  truth: >-
+    MATCH (:Product {name: 'Lock Ring'})-[:STOCKED_AT]->(l:Location) RETURN l.name AS expected
+- id: k5
+  category: stock
+  question: How many units of Metal Sheet 4 are on hand?
+  truth: >-
+    MATCH (p:Product {name: 'Metal Sheet 4'}) RETURN p.on_hand AS expected
+
+# ---- Targets ----
+- id: t1
+  category: targets
+  question: What is the sales target for Canada in the current quota period?
+  truth: >-
+    MATCH (:Territory {name: 'Canada'})<-[:COVERS]-(:SalesPerson)-[:HAS_TARGET]->(t:Target {is_current: true}) RETURN sum(t.amount) AS expected
+- id: t2
+  category: targets
+  question: What is the sales target for Southwest in the current quota period?
+  truth: >-
+    MATCH (:Territory {name: 'Southwest'})<-[:COVERS]-(:SalesPerson)-[:HAS_TARGET]->(t:Target {is_current: true}) RETURN sum(t.amount) AS expected
+- id: t3
+  category: targets
+  question: What is the sales target for France in the current quota period?
+  truth: >-
+    MATCH (:Territory {name: 'France'})<-[:COVERS]-(:SalesPerson)-[:HAS_TARGET]->(t:Target {is_current: true}) RETURN sum(t.amount) AS expected
+- id: t4
+  category: targets
+  question: Which territories are projected to miss their target by more than 15%?
+  truth: >-
+    MATCH (a:Alert {type: 'target_gap', status: 'open'})-[:ABOUT]->(t:Territory) RETURN t.name AS expected
+- id: t5
+  category: targets
+  question: How much of Canada's open order revenue is blocked by supply problems?
+  truth: >-
+    MATCH (:Territory {name: 'Canada'})<-[:COVERS]-(:SalesPerson)-[:HAS_TARGET]->(t:Target {is_current: true}) RETURN round(sum(t.usd_at_risk)) AS expected
+- id: t6
+  category: targets
+  question: Which territory has the largest dollar gap to its target?
+  truth: >-
+    MATCH (a:Alert {type: 'target_gap', status: 'open'})-[:ABOUT]->(t:Territory) RETURN t.name AS expected ORDER BY a.usd_at_risk DESC LIMIT 1
+- id: t7
+  category: targets
+  question: What is the sales target for Germany in the current quota period?
+  truth: >-
+    MATCH (:Territory {name: 'Germany'})<-[:COVERS]-(:SalesPerson)-[:HAS_TARGET]->(t:Target {is_current: true}) RETURN sum(t.amount) AS expected
+- id: t8
+  category: targets
+  question: Is the United Kingdom's target gap mainly a supply problem or a demand problem?
+  keywords: [demand]
+
+# ---- Scrap ----
+- id: q1
+  category: scrap
+  question: Which work centre has a scrap spike right now?
+  truth: >-
+    MATCH (:Alert {type: 'scrap_spike', status: 'open'})-[:ABOUT]->(l:Location) RETURN l.name AS expected
+- id: q2
+  category: scrap
+  question: What is the most common scrap reason in the last 21 days?
+  truth: >-
+    MATCH (w:WorkOrder)-[:SCRAPPED_FOR]->(r:ScrapReason) WHERE w.end_date > date($as_of) - duration({days: 21}) WITH r, sum(w.scrapped_qty) AS units RETURN r.name AS expected ORDER BY units DESC LIMIT 1
+- id: q3
+  category: scrap
+  question: Name a product that was scrapped at the Paint work centre in the last 21 days.
+  match: any
+  truth: >-
+    MATCH (w:WorkOrder)-[:ROUTED_THROUGH]->(:Location {name: 'Paint'}) WHERE w.end_date > date($as_of) - duration({days: 21}) AND w.scrapped_qty > 0 MATCH (w)-[:PRODUCES]->(p:Product) RETURN DISTINCT p.name AS expected
+
+# ---- Documents: policies, procedures, emails (plain RAG should do well here) ----
+- id: d1
+  category: documents
+  question: Up to what expedite cost can a planner approve without the Supply Manager?
+  keywords: ["5,000"]
+- id: d2
+  category: documents
+  question: How much does premium freight typically cost as a share of the PO value?
+  keywords: ["8%", "12%"]
+- id: d3
+  category: documents
+  question: Why is Custom Frames delivering late?
+  keywords: [press line]
+- id: d4
+  category: documents
+  question: How many weeks of safety stock must single-source parts carry?
+  keywords: [4 weeks]
+- id: d5
+  category: documents
+  question: What is causing the high scrap at the Paint work centre?
+  keywords: [humidity]
+- id: d6
+  category: documents
+  question: Is the Southwest touring bike order spike a one-off or a new run rate?
+  keywords: [one-off]
+- id: d7
+  category: documents
+  question: After how many days late is a purchase order escalated to the Supply Manager?
+  keywords: [7 days]
+- id: d8
+  category: documents
+  question: What share of quota do sales reps reach on average historically?
+  keywords: ["84%"]

@@ -69,6 +69,7 @@ def make_alert(
     impact: Impact,
     as_of: date,
     urgent: bool = False,
+    notable: bool = False,
     **details,
 ) -> dict:
     """Build one alert as a plain dict. `about` holds the uids the alert points at."""
@@ -78,7 +79,7 @@ def make_alert(
         "type": kind,
         "title": title,
         "summary": summary,
-        "severity": rules.severity(impact.usd_at_risk, urgent),
+        "severity": rules.severity(impact.usd_at_risk, urgent, notable),
         "usd_at_risk": impact.usd_at_risk,
         "usd_exposed": impact.usd_exposed,
         "early_warning_days": early_days,
@@ -118,7 +119,8 @@ def po_alerts(as_of: date) -> list[dict]:
                 [f"PurchaseOrder:{po.purchase_order_id}", f"Vendor:{po.vendor_id}"],
                 impact,
                 as_of,
-                urgent=po.days_late >= 7,
+                urgent=po.days_late >= 14,
+                notable=po.days_late >= 7,
                 days_late=po.days_late,
             )
         )

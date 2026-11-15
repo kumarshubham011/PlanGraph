@@ -34,3 +34,9 @@ def run_read(cypher: str, timeout: float = 30, **params) -> list[dict]:
 def run_write(cypher: str, **params) -> list[dict]:
     with neo4j_driver().session() as session:
         return [r.data() for r in session.run(cypher, params)]
+
+
+@lru_cache
+def as_of_date() -> str:
+    """The simulated "today" of the last pipeline run, as YYYY-MM-DD."""
+    return str(read_sql("SELECT as_of FROM meta.run_info").iloc[0, 0])
